@@ -1,9 +1,7 @@
 import matplotlib.pyplot as plt
-import pandas as pd
 import seaborn as sns
-from scipy.stats import zscore
 
-def dataExploration(df):
+def explore_data(df):
     """
     Performs exploratory data analysis (EDA) on the given DataFrame.
 
@@ -40,7 +38,7 @@ def dataExploration(df):
         plt.ylabel("Frequency")
         plt.show()
 
-def cumulativeDeaths(df):
+def plot_cumulative_deaths(df):
     """
     Visualizes global cumulative deaths over time
 
@@ -58,7 +56,7 @@ def cumulativeDeaths(df):
     plt.grid()
     plt.show()
 
-def topCountries(df):
+def plot_top_countries(df):
     """
     Visualizes the top 10 countries with the highest number of deaths
 
@@ -75,15 +73,15 @@ def topCountries(df):
     plt.ylabel("Country")
     plt.show()
 
-def cumulativeByCountry(df, countries):
+def plot_cumulative_deaths_by_country(df, countries):
     """
     Visualizes cumulative deaths for selected countries over time
 
     Args:
-        df (pd.DataFrame): The DataFrame containing COVID-19 data
+        df (pd.DataFrame): The DataFrame containing COVID-19 data, with Date already
+            parsed as datetime (as produced by clean_data)
         countries (list): List of country names to visualize
     """
-    df["Date"] = pd.to_datetime(df["Date"])
     df_selected = df[df["Country/Region"].isin(countries)]
     df_cumulative = df_selected.groupby(["Date", "Country/Region"]).agg({"Deaths": "sum"}).reset_index()
 
@@ -97,14 +95,14 @@ def cumulativeByCountry(df, countries):
     plt.grid()
     plt.show()
 
-def mortalityRateComparison(df):
+def plot_mortality_rate_comparison(df):
     """
     Visualizes the mortality rates of the top 10 countries
 
     Args:
-        df (pd.DataFrame): The DataFrame containing COVID-19 data
+        df (pd.DataFrame): The DataFrame containing COVID-19 data, with Mortality_Rate
+            already computed as a percentage (as produced by clean_data)
     """
-    df["Mortality_Rate"] = df["Deaths"] / df["Confirmed"]
     df_country_mortality = df.groupby("Country/Region").agg({"Mortality_Rate": "mean"}).reset_index()
     df_country_mortality = df_country_mortality.sort_values(by="Mortality_Rate", ascending=False)
 
