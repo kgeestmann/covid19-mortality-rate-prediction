@@ -1,94 +1,89 @@
-# Analysis of COVID-19 mortality rate
+# Analysis and Prediction of COVID-19 Mortality Rate
 
-## Data retrival and preparation
+Predicting a region's COVID-19 mortality rate (deaths as a percentage of confirmed cases) from
+Johns Hopkins University time-series data, using a Gradient Boosting model.
 
-**The loading and processing of the data was handled in the function `loadCovidData()`.**\
-The function returns a pd.DataFrame.
+The central challenge in this project is **avoiding data leakage**. The target is derived from
+death and case counts, so naive feature selection or a naive train/test split lets the model see
+the answer it is supposed to predict. Most of the design decisions below exist to prevent that.
 
-\
-The data used in this project was retrieved from the Johns Hopkins University repository using URLs, which were used to load the CSV files into Pandas DataFrames.
+**Results on held-out future dates:**
 
-\
-**Reshaping the Data:**
-- The data is transformed from a wide format (dates as column headers) to a long format, where each row represents a single observation with a specific date, region, and count of cases, deaths, or recoveries. This makes the data easier to merge and analyze.
+| Metric | Model | Baseline (predict training mean) |
+|---|---|---|
+| MAE | **0.268** | 0.888 |
+| MSE | **0.149** | 1.019 |
+| R² | **0.816** | −0.259 |
 
-\
-**Date Conversion into datetime**:
-- The date column, originally in string format, is converted into a datetime format using `pd.to_datetime()` to ensure the data is properly understood and can be effectively manipulated for analysis.
+---
 
-\
-**Merging the Data:**
-- The three datasets (confirmed cases, deaths, and recoveries) are merged into a single, unified DataFrame using common columns such as province/state, country/region, latitude, longitude, and date.
+## Project structure
 
-\
-**Dataset after merging the three datasets into one (prints are in the main method):**
-```console
-#   print(df.head())
-  Province/State Country/Region       Lat  ...  Confirmed Deaths  Recovered
-0            NaN    Afghanistan  33.93911  ...          0      0          0
-1            NaN        Albania  41.15330  ...          0      0          0
-2            NaN        Algeria  28.03390  ...          0      0          0
-3            NaN        Andorra  42.50630  ...          0      0          0
-4            NaN         Angola -11.20270  ...          0      0          0
-
-[5 rows x 8 columns]
-
-#   print("\nShape of the data:", df.shape)
-Shape of the data: (306324, 8)
-
-#   print("\nColumn names:", df.columns)
-Column names: Index(['Province/State', 'Country/Region', 'Lat', 'Long', 'Date', 'Confirmed',
-       'Deaths', 'Recovered'],
-      dtype='object')
-#   print(f"\nNumber of records: {df.shape[0]}")
-Number of records: 306324
+```
+covid19-mortality-rate-prediction/
+├── src/
+│   ├── data_preparation.py     Loading, cleaning, and feature engineering
+│   ├── model.py                Train/test split, pipeline, training, evaluation
+│   └── visualization.py        Exploratory plots
+├── tests/
+│   ├── test_data_preparation.py
+│   └── test_model.py
+├── images/                     Generated plots (not tracked in git)
+├── main.py                     Entry point — runs the full pipeline
+├── requirements.txt
+└── pytest.ini
 ```
 
-## Data cleaning and extraction
-**The cleaning and extraction of the data was handled in the function `cleanData(df)`.**\
-The function expects a pd.DataFrame as parameter and returns a cleaned pd.DataFrame.
+## Setup and usage
 
-\
-**Removing Duplicates:**
-- Any duplicate rows are dropped to avoid redundant data entries.
+Requires Python 3.9+.
 
-\
-**Handling Missing Values:**
-- The columns are categorized into numerical and categorical for targeted cleaning.
-- Missing values in numerical columns are replaced with 0, while categorical columns are filled with the placeholder "unknown."
-- Rows with excessive missing data (more than 30%) are removed to maintain data integrity.
+```bash
+# 1. Create and activate a virtual environment
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1     # Windows (PowerShell)
+source .venv/bin/activate        # macOS / Linux
 
-\
-**Outlier Detection and Removal:**
-- The Interquartile Range (IQR) method is applied to identify and remove rows with outliers in numerical columns.
+# 2. Install dependencies
+pip install -r requirements.txt
 
-\
-**Logical Consistency Checks:**
-- Ensures that the number of deaths does not exceed the number of confirmed cases as this could make the model predictions less accurate.
+# 3. Run the full pipeline
+python main.py
 
-\
-**Standardizing Country Names:**
-- Country names are standardized ("US"/ "U.S" is replaced with "United States" and "UK is replaced with "United Kingdom) to ensure more accurate predictions.
+# 4. Run the tests
+pytest
+```
 
-\
-**Variable transformation:**
-- Extracts new features from the date column so we can use the date data to train our model
-  - Day of the Week: A numerical representation (0 = Monday, 6 = Sunday).
-  - Month: The calendar month of the observation.
-  - Day of the Year: A number indicating the day's position in the year.
-  
-- Calculates the mortality rate as the percentage of deaths out of confirmed cases, as this will be the predicted value in our model.
+`main.py` downloads the data, cleans it, prints summaries, displays several plots, then trains and
+evaluates the model. **Each plot window blocks execution until it is closed.** Training the
+Gradient Boosting model takes a couple of minutes, as its 300 trees are built sequentially.
 
-\
-**Final Cleaning:**
-- Removes any rows with infinite or NaN values in the newly calculated Mortality_Rate column.
-- Drops remaining rows with missing values to ensure a clean dataset.
+---
 
-\
-**Missing values in the dataset before cleaning:**
+## Data retrieval and preparation
+
+Handled by `load_covid_data()`, which returns a `pd.DataFrame`.
+
+Data is retrieved from the [Johns Hopkins University CSSE repository](https://github.com/CSSEGISandData/COVID-19)
+as three separate time series: confirmed cases, deaths, and recoveries.
+
+**Reshaping:** Each file arrives in wide format, with one column per date. It is melted into long
+format so each row is a single observation (one location, one date, one count), which makes the
+three datasets mergeable and easier to analyse.
+
+**Date conversion:** The date column arrives as strings (`"1/22/20"`) and is parsed into proper
+datetime values, so it can be sorted and used for time-based features.
+
+**Merging:** The three datasets are joined on province/state, country/region, latitude, longitude,
+and date into a single DataFrame.
+
 ```console
-#   print("\nMissing values in the columns:", df.isnull().sum())
-Missing values in the columns: 
+Shape of the data: (306324, 8)
+
+Column names: Index(['Province/State', 'Country/Region', 'Lat', 'Long', 'Date', 'Confirmed',
+       'Deaths', 'Recovered'], dtype='object')
+
+Missing values in the columns:
 Province/State    222885
 Country/Region         0
 Lat                 1143
@@ -97,236 +92,283 @@ Date                   0
 Confirmed              0
 Deaths                 0
 Recovered              0
-dtype: int64
 ```
 
-\
-**Dataset after cleaning:**
+---
+
+## Data cleaning and feature engineering
+
+Handled by `clean_data(df)`, which expects the merged DataFrame and returns a cleaned one.
+
+The JHU series is **cumulative** — each row is a running total, not a daily figure. Consecutive
+days for the same location are therefore nearly identical. This single fact drives most of the
+decisions below.
+
+### Order of operations
+
+Row filtering happens *after* the lag and difference features are computed. Those features require
+each location's series to be contiguous and chronological; removing rows first would silently
+corrupt them by creating gaps.
+
+### Cleaning steps
+
+**Removing duplicates** — exact duplicate rows are dropped.
+
+**Handling missing values** — columns are split into numerical and categorical. Numerical gaps are
+filled with 0, categorical gaps with `"unknown"` (most `Province/State` values are missing, since
+most countries report at national level). Rows missing more than 30% of their values are dropped.
+
+**Standardizing country names** — `"US"` and `"U.S."` become `"United States"`, `"UK"` becomes
+`"United Kingdom"`. This runs *before* grouping, so each country forms one series rather than
+several fragments.
+
+**Enforcing logical consistency** — rows where deaths exceed confirmed cases are removed, as they
+represent reporting errors.
+
+**Filtering small denominators** — rows with fewer than 100 cumulative confirmed cases are dropped.
+A region with 1 case and 1 death produces a mortality rate of 100%, which is noise rather than
+signal, and such rows otherwise dominate the target's upper range.
+
+**Outlier removal** — the IQR method is applied **to the mortality rate only**. This is deliberate:
+
+- Applying it to `Lat`/`Long` would delete entire countries at extreme latitudes. Coordinates are
+  identifiers, not measurements, so they have no meaningful outliers.
+- Applying it to case counts would delete every major outbreak. In an exponential epidemic the
+  large values *are* the signal.
+
+### Engineered features
+
+**Daily counts** (`New_Confirmed`, `New_Deaths`) — the cumulative totals are differenced within
+each location to recover per-day figures. Cumulative series are occasionally revised downward,
+producing negative differences, which are clipped to zero.
+
+**Days since first case** (`Days_Since_First_Case`) — days elapsed since a location's first
+confirmed case, capturing how far into its own outbreak a region is, independent of the calendar.
+
+**Lagged case counts** (`New_Confirmed_Lag_7`, `New_Confirmed_Lag_14`,
+`Smoothed_New_Confirmed_Lag_14`) — case counts from 7 and 14 days earlier. Deaths lag infections by
+roughly two to three weeks, so past case load is the epidemiologically meaningful predictor of
+today's mortality rate. The smoothed variant is a 7-day rolling mean, which absorbs the weekly
+reporting artefacts (weekend dips) present in the raw data.
+
+**Calendar features** (`Day_of_Week`, `Month`, `Day_of_Year`) — extracted from the date.
+
+**Mortality rate** (`Mortality_Rate`) — the target: deaths as a percentage of confirmed cases.
+Infinite values (from zero-case rows) are removed.
+
+### Resulting dataset
+
 ```console
-#   print(df_cleaned.head())
-   Province/State Country/Region      Lat  ...  Month Day_of_Year  Mortality_Rate
-43          Anhui          China  31.8257  ...      1          22             0.0
-44        Beijing          China  40.1824  ...      1          22             0.0
-45      Chongqing          China  30.0572  ...      1          22             0.0
-46         Fujian          China  26.0789  ...      1          22             0.0
-48      Guangdong          China  23.3417  ...      1          22             0.0
-
-[5 rows x 12 columns]
-
-#   print("\nColumn names after transforming:", df_cleaned.columns)
-Column names after transforming: Index(['Province/State', 'Country/Region', 'Lat', 'Long', 'Date', 'Confirmed',
-       'Deaths', 'Recovered', 'Day_of_Week', 'Month', 'Day_of_Year',
-       'Mortality_Rate'],
-      dtype='object')
-
-#   print(f"\nNumber of records after cleaning: {df_cleaned.shape[0]}")
-Number of records after cleaning: 150432
-
-#   print("\nMissing values in the columns after cleaning:", df_cleaned.isnull().sum())
-Missing values in the columns after cleaning: 
-Province/State    0
-Country/Region    0
-Lat               0
-Long              0
-Date              0
-Confirmed         0
-Deaths            0
-Recovered         0
-Day_of_Week       0
-Month             0
-Day_of_Year       0
-Mortality_Rate    0
-dtype: int64
+Number of records after cleaning: 243586
+Columns: 18
+Date range: 2020-02-05 to 2023-03-09
 ```
+
+79.5% of the original rows are retained. The target is now well behaved, with no small-denominator
+extremes:
+
+```console
+Mortality_Rate
+mean      1.327
+std       1.042
+min       0.000
+25%       0.498
+50%       1.119
+75%       1.966
+max       4.660
+```
+
+---
+
+## Avoiding data leakage
+
+Two distinct leaks had to be closed. Both are easy to miss, and both inflate scores while producing
+a model that would fail in practice.
+
+### 1. Feature leakage
+
+`Mortality_Rate` is `Deaths / Confirmed`. Any same-day count therefore reveals part of the answer
+directly. The following columns are excluded from the feature matrix:
+
+`Confirmed`, `Deaths`, `Recovered`, `New_Confirmed`, `New_Deaths`, `Mortality_Rate`, `Date`
+
+Only **lagged** case history survives into the model — information that would genuinely have been
+available before the prediction date.
+
+### 2. Split leakage
+
+Because the source data is cumulative, day 200 and day 201 for the same province are near-duplicate
+rows with near-identical targets. A random `train_test_split` scatters those near-duplicates across
+both sets, so the model can recall answers from training rather than generalise to new ones.
+
+The split is therefore **chronological**: the model trains on the earliest 80% of dates and is
+tested on the most recent 20%, which it has never seen.
+
+```console
+Training on 194671 rows up to 2022-08-29
+Testing on 48915 rows from 2022-08-30 onward
+```
+
+This is a strictly harder evaluation than a random split, and it is the only one that reflects the
+real task: predicting forward in time.
+
+---
+
 ## Data exploration and visualization
-**The exploration and visualization of the data was handled in the functions `dataExploration()`, `cumulativeDeaths()`, `topCountries()`, `cumulativeByCountry()` and `mortalityRateComparison()`.**\
-The functions each expect a cleaned pd.DataFrame as parameter and print one or more plots.
 
-`dataExploration(df)`
-- Prints descriptive statistics (e.g., mean, min, max) for numerical columns.
+Handled by `explore_data()`, `plot_cumulative_deaths()`, `plot_top_countries()`,
+`plot_cumulative_deaths_by_country()`, and `plot_mortality_rate_comparison()`. Each expects a
+cleaned DataFrame and renders one or more plots.
+
+`explore_data(df)` — prints descriptive statistics, computes the correlation matrix, renders a
+correlation heatmap, and plots distributions for `Deaths`, `Confirmed`, and `Recovered`.
+
+Correlation of each numerical feature with the target:
+
 ```console
-Descriptive Statistics:
-                 Lat           Long  ...    Day_of_Year  Mortality_Rate
-count  150432.000000  150432.000000  ...  150432.000000   150432.000000
-mean       16.924450      38.960620  ...     180.412412        1.577900
-min       -42.882100    -159.777700  ...       1.000000        0.000000
-25%         3.933900     -11.779889  ...      89.000000        0.110469
-50%        17.570692      29.918900  ...     178.000000        0.692841
-75%        35.126400     112.292200  ...     271.000000        1.652893
-max        71.706900     178.065000  ...     366.000000      100.000000
-std        22.940687      75.941242  ...     105.315916        3.442672
-
-[8 rows x 10 columns]
+Mortality_Rate                   1.000000
+Deaths                           0.099188
+New_Deaths                       0.087337
+Recovered                        0.076391
+New_Confirmed                    0.001898
+New_Confirmed_Lag_7             -0.001744
+New_Confirmed_Lag_14            -0.004346
+Smoothed_New_Confirmed_Lag_14   -0.005511
+Confirmed                       -0.010665
+Lat                             -0.070477
+Days_Since_First_Case           -0.233079
+Long                            -0.244717
 ```
 
-- Calculates the correlation matrix and visualizes a correlation heatmap for numerical variables to identify relationships. 
-- We can see that Deaths and Confirmed strongly depend on each other
+Every linear correlation is weak. The strongest are `Long` (−0.24) and `Days_Since_First_Case`
+(−0.23). This is informative in itself: any predictive power the model has must come from
+non-linear structure and from the categorical location features, not from simple linear
+relationships — which is consistent with the feature importances reported below.
 
-Correlation Matrix (Console)
-```console
-Correlation Matrix (Numerical Columns Only):
-                     Lat      Long  ...  Recovered  Mortality_Rate
-Lat             1.000000 -0.105815  ...   0.040627       -0.100704
-Long           -0.105815  1.000000  ...   0.041068       -0.127642
-Confirmed      -0.080478 -0.002497  ...  -0.159234       -0.095367
-Deaths         -0.150065 -0.141271  ...  -0.169566        0.054848
-Recovered       0.040627  0.041068  ...   1.000000        0.052829
-Mortality_Rate -0.100704 -0.127642  ...   0.052829        1.000000
+`plot_cumulative_deaths(df)` — global cumulative deaths over time, grouped by date.
 
-[6 rows x 6 columns]
-```
-- Plots histograms for key variables (Deaths, Confirmed, Recovered) to examine their distributions.
+`plot_top_countries(df)` — horizontal bar chart of the 10 countries with the highest total deaths.
 
-\
-`cumulativeDeaths(df)`\
-Visualizes the global cumulative COVID-19 deaths over time.
-- Groups data by Date and sums up Deaths for each day globally.
-- Creates a line chart showing the growth of deaths over time.
+`plot_cumulative_deaths_by_country(df, countries)` — cumulative deaths over time, one line per
+country. `main.py` passes every country in the dataset, which is more series than a single chart
+can legibly display; it is included for exploratory purposes.
 
-\
-`topCountries(df)`\
-Identifies and visualizes the top 10 countries with the highest total COVID-19 deaths.
-- Groups data by Country/Region and sums up the Deaths for each country.
-- Sorts countries by total deaths in descending order.
-- Creates a horizontal bar chart for the top 10 countries
+`plot_mortality_rate_comparison(df)` — the 10 countries with the highest average mortality rate.
 
-\
-`cumulativeByCountry(df, countries)`\
-Visualizes cumulative deaths over time for specific countries (Not ideal but included for visualization purposes).
-- The countries-list is assigned straight from the 'Country/Region' column of the dataset when calling the function in the main method: 
-
-- Filters data for the given list of countries.
-- Groups data by Date and Country/Region, summing up Deaths.
-- Creates a line plot for cumulative deaths, with separate lines for each selected country (Probably too many countries to visualize, hence it breaks after May 2021).
-
-\
-`mortalityRateComparison(df)`
-- Compares the average mortality rates (deaths/confirmed cases) of the top 10 countries.
-- Calculates a new column, Mortality_Rate, as Deaths / Confirmed (Added this function before adding the Mortality Rate column in cleanData(), hence it creates a new column for visualization purposes)
-- Groups data by Country/Region and computes the average mortality rate for each country.
-- Sorts countries by their mortality rates in descending order.
-- Creates a horizontal bar chart to visualize the top 10 countries with the highest mortality rates.
-
+---
 
 ## Model building and evaluation
 
-**The model building and evaluation process is handled in the function `modelBuilder(df)`.**\
-The function expects a cleaned pd.DataFrame as a parameter and performs the following steps:
+Handled by `train_and_evaluate_model(df)`, which returns the fitted pipeline and a metrics
+dictionary.
 
-**Features and Target Variable**\
-The features (X) are selected by dropping columns that are not relevant to the model prediction, such as Confirmed, Deaths, Recovered, Mortality_Rate, and Date. The target variable (y) is set to the Mortality_Rate column, which is what the model will predict.
-
-- The columns `Confirmed`, `Deaths`, and `Recovered` are excluded because they are directly tied to the calculation of Mortality_Rate. Including these would result in data leakage, where the model might use information it wouldn't realistically have when making predictions in the real world.
-- The `Date` column is dropped because features like day, month, or day of the week are already extracted separately as part of the preprocessing pipeline. Including raw date values would not add meaningful information for the model.
-- The target variable for the model is the `Mortality_Rate` because our goal is to predict the mortality rate based on other features. Mortality rate is the percentage of deaths among confirmed cases.
-
-\
-**Data Splitting**\
-The dataset is split into training and testing sets using an 80/20 ratio. This is done using the `train_test_split()` function from `sklearn.model_selection`. The training set is used to fit the model, while the testing set evaluates the model's performance on unseen data.
-- The 80/20 split ensures that the model is trained on a sufficiently large portion of the data (80%) to capture patterns and relationships, while reserving 20% for evaluation. This split ratio is a standard practice in machine learning which is why I chose this ratio.
-- The random_state parameter is set to ensure reliability, so the split remains consistent across different runs. I chose the number 42, because I saw it in multiple tutorials and example codes.
-
-Train Set:
-```console
-print("\nTrain Set Overview:")
-Train Set Overview:
-       Province/State  Country/Region      Lat  ...  Day_of_Week  Month  Day_of_Year
-32100         unknown      San Marino  43.9424  ...            2      5          141
-179991        unknown           Malta  35.9375  ...            1     11          327
-218868   Sint Maarten     Netherlands  18.0425  ...            6      4          107
-92168         Bermuda  United Kingdom  32.3078  ...            2     12          365
-208301       Shandong           China  36.3427  ...            2      3           68
-
-[5 rows x 7 columns]
-
-print("\nTrain Set Description:")
-Train Set Description:
-                 Lat           Long  ...          Month    Day_of_Year
-count  120345.000000  120345.000000  ...  120345.000000  120345.000000
-mean       16.888270      38.810381  ...       6.430238     180.351365
-std        22.953208      76.018134  ...       3.445614     105.299834
-min       -42.882100    -159.777700  ...       1.000000       1.000000
-25%         3.933900     -11.779889  ...       3.000000      89.000000
-50%        17.570692      29.918900  ...       6.000000     178.000000
-75%        35.126400     112.292200  ...       9.000000     271.000000
-max        71.706900     178.065000  ...      12.000000     366.000000
-[8 rows x 5 columns]
-```
-
-Test Set:
-```console
-print("\nTest Set Overview:")
-Test Set Overview:
-       Province/State  Country/Region  ...  Month  Day_of_Year
-297188        Bermuda  United Kingdom  ...      2           34
-155601        unknown        Maldives  ...      8          236
-213928        Shaanxi           China  ...      3           89
-198650        Ningxia           China  ...      2           32
-182877        unknown         Finland  ...     12          338
-
-print("\nTest Set Description:")
-Test Set Description:
-                Lat          Long   Day_of_Week         Month   Day_of_Year
-count  30087.000000  30087.000000  30087.000000  30087.000000  30087.000000
-mean      17.069165     39.561561      2.983481      6.439891    180.656596
-std       22.890340     75.631173      2.005351      3.447419    105.381611
-min      -42.882100   -159.777700      0.000000      1.000000      1.000000
-25%        3.933900    -10.940800      1.000000      3.000000     88.000000
-50%       17.607789     30.217600      3.000000      6.000000    179.000000
-75%       35.126400    112.292200      5.000000      9.000000    271.000000
-max       71.706900    178.065000      6.000000     12.000000    366.000000
-[5 rows x 7 columns]
-```
-\
-**Data Preprocessing**\
-The dataset is preprocessed by separating categorical and numerical columns, allowing for targeted transformations specific to each data type:  
-- Numerical columns are standardized using `StandardScaler`. This ensures all numerical features have a mean of 0 and a standard deviation of 1, aligning their magnitudes. Standardization helps models, by improving numerical stability and reducing bias from features with larger ranges.
-- Categorical columns, `Country/Region` and `Province/State`, are one-hot encoded using `OneHotEncoder`. This transformation represents each category as a separate binary column, ensuring the model treats each category as independent.
-  - StandardScaler ensures that numerical features are on the same scale, preventing features with large values (e.g., longitude) from dominating features with smaller ranges (e.g., incident rates). This is important because models like Gradient Boosting, though robust to unscaled data, can benefit from standardized features. This step also ensures that the model doesn't give undue weight to features simply because they have larger ranges.
-  - Categorical features such as Country/Region and Province/State were one-hot encoded. One-hot encoding creates binary columns for each category, allowing the model to learn the influence of different categories without assuming any ordinal relationship between them. For example, countries like "United States" and "China" are independent categories that cannot be compared directly in terms of magnitude, which is why one-hot encoding is appropriate here.
-- These preprocessing steps are implemented via a ColumnTransformer, ensuring both transformations are applied consistently and efficiently before model training.
-
-\
-**Model Definition**\
-The predictive model is built using `GradientBoostingRegressor`, a machine learning algorithm suited for handling complex, non-linear relationships in data.  
-- learning_rate=0.05: The learning rate was set to a relatively low value (0.05) to prevent overfitting and ensure gradual learning. A smaller learning rate leads to slower, more precise updates during training.
-
-
-- max_depth=7: The max depth of 7 was chosen to control the complexity of the model and avoid overfitting. Deeper trees may fit the data too closely, but limiting the depth helps the model generalize better.
-
-
-- n_estimators=300: I used 300 estimators (trees) to allow for sufficient model complexity while controlling for overfitting. This provides a good balance between capturing the relationships in the data and not overfitting.
-
-
-- The preprocessing and model steps are combined into a single pipeline to ensure that data preprocessing and model training occur sequentially.
-
-
-- The decision to use `GradientBoostingRegressor` was made after comparing the predictions using different models like `XGBoost` and `LinearRegression` and concluding that GradientBoostingRegressor produces the most accurate predictions.
-
-
-\
-**Model Training**
-- The model is trained on the training dataset (X_train, y_train) using the `fit()` method of the pipeline.
-
-\
-**Predictions and Evaluation**
-- After training, the model makes predictions on the test set (X_test).
-- The model's performance is evaluated using three metrics:
-  - Mean Absolute Error (MAE): Measures the average magnitude of errors in predictions.
-  - Mean Squared Error (MSE): Measures the average squared difference between the predicted and actual values.
-  - R-squared (R²): Indicates how well the model explains the variance in the target variable.
+**Features used:**
 
 ```console
-print(f"\nMAE: {mae}, MSE: {mse}, R²: {r2}")
-MAE: 0.008186468403731188, MSE: 0.0004403838171951204, R²: 0.6331801722529182
+['Province/State', 'Country/Region', 'Lat', 'Long', 'Days_Since_First_Case',
+ 'New_Confirmed_Lag_7', 'New_Confirmed_Lag_14', 'Smoothed_New_Confirmed_Lag_14',
+ 'Day_of_Week', 'Month', 'Day_of_Year']
 ```
-\
-**Model Visualization**
-- A scatter plot is generated to visualize the relationship between the actual mortality rates (y_test) and the predicted values (y_pred).
-- This visualization helps evaluate how well the model's predictions match the actual outcomes.
 
+**Preprocessing** — applied through a `ColumnTransformer` so both transformations stay consistent:
 
-## Main-Method
-All the functions are being called in the main-method and the output of the functions is stored in local variables. Descriptive prints about the dataframes are printed after calling each functions.
+- Numerical columns are standardized with `StandardScaler`, giving each a mean of 0 and standard
+  deviation of 1. This prevents features with large ranges (such as longitude) from dominating
+  those with smaller ones.
+- `Country/Region` and `Province/State` are one-hot encoded. These categories have no ordinal
+  relationship — "China" is not greater than "France" — so one-hot encoding is the appropriate
+  representation. `handle_unknown="ignore"` ensures categories appearing only in the test period
+  do not cause failures.
+
+**Model** — `GradientBoostingRegressor`, chosen after comparing against `XGBoost` and
+`LinearRegression`:
+
+- `learning_rate=0.05` — a low rate makes each tree's correction small, which improves
+  generalization at the cost of needing more trees.
+- `max_depth=7` — deep enough to capture interactions between location and outbreak stage, shallow
+  enough to limit overfitting.
+- `n_estimators=300` — balances model capacity against training time and overfitting risk.
+
+Preprocessing and model are combined into a single `Pipeline`, so the scaler and encoder are fitted
+on training data only and applied identically to the test data.
+
+### Results
+
+```console
+MAE: 0.268, MSE: 0.149, R²: 0.816
+```
+
+Measured against a naive baseline that predicts the training mean for every row:
+
+| Metric | Model | Baseline |
+|---|---|---|
+| MAE | 0.268 | 0.888 |
+| MSE | 0.149 | 1.019 |
+| R² | 0.816 | −0.259 |
+
+The baseline's *negative* R² is worth noting: average mortality rates fell over the course of the
+pandemic as treatment and vaccination improved, so the training-period mean is actively misleading
+when applied to later dates. The model handles that distribution shift, which the baseline by
+definition cannot.
+
+### What the model actually learned
+
+Feature importances, with one-hot columns aggregated back to their source feature:
+
+| Feature | Importance |
+|---|---|
+| Country/Region | 0.361 |
+| Province/State | 0.221 |
+| Long | 0.136 |
+| Lat | 0.134 |
+| Days_Since_First_Case | 0.122 |
+| Smoothed_New_Confirmed_Lag_14 | 0.015 |
+| Day_of_Year | 0.009 |
+| New_Confirmed_Lag_7 | 0.002 |
+| New_Confirmed_Lag_14 | 0.002 |
+| Month | 0.001 |
+| Day_of_Week | 0.000 |
+
+**Roughly 85% of the model's predictive weight comes from location** (`Country/Region`,
+`Province/State`, `Lat`, `Long`), and a further 12% from `Days_Since_First_Case`. The lagged case
+features together contribute under 2%.
+
+In other words, the model has largely learned *"where are you, and how far into your outbreak are
+you?"* — which is a real and defensible signal, since mortality rates genuinely varied enormously
+between countries because of healthcare capacity, population age structure, and testing regimes.
+But it is not modelling epidemic dynamics, and the lagged case counts added far less than expected.
+
+### Limitations
+
+- **The model is largely a country-level lookup.** It would generalize poorly to a region absent
+  from the training data, since location dominates its decisions.
+- **No population normalization.** Absolute case counts are used rather than per-capita rates, so
+  the model cannot distinguish a large outbreak from a large country.
+- **Key drivers are missing from the data.** Population age structure, healthcare capacity,
+  vaccination coverage, and testing rates all strongly affect mortality but are not present in the
+  JHU time series.
+- **Reporting quality varies by country**, and the mortality rate measures *reported* deaths over
+  *reported* cases. Differences between countries partly reflect differences in testing and
+  reporting rather than in real outcomes.
+
+---
+
+## Tests
+
+21 unit tests cover the non-trivial logic, and can be run with `pytest`.
+
+`tests/test_data_preparation.py` covers each cleaning and feature-engineering step in isolation:
+deduplication, missing-value handling, IQR trimming, logical consistency, the small-denominator
+filter, and the derived features. Several tests specifically guard the correctness of the
+time-series logic — that differencing does not bleed across location boundaries, that downward data
+revisions are clipped, and that lagged columns are offset by the expected number of days.
+
+`tests/test_model.py` covers the split and evaluation logic, including two assertions that protect
+against the leaks described above: that no excluded column can reach the feature matrix, and that
+the train and test sets share no dates.
+
+---
+
 ## Author
-Kim Geestmann 
+
+Kim Geestmann
