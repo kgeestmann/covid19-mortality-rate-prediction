@@ -175,19 +175,7 @@ Mortality_Rate -0.100704 -0.127642  ...   0.052829        1.000000
 
 [6 rows x 6 columns]
 ```
-Correlation Matrix of Numerical Variables:
-![Correlation Matrix](images/correlationMatrix.png "Correlation Matrix of Numerical Variables")
-
 - Plots histograms for key variables (Deaths, Confirmed, Recovered) to examine their distributions.
-
-Distribution of Confirmed:
-![Distribution of Confirmed](images/distributionConfirmed.png "Distribution of Confirmed")
-
-Distribution of Deaths:
-![Distribution of Deaths](images/distributionDeaths.png "Distribution of Deaths")
-
-Distribution of Recovered:
-![Distribution of Recovered](images/distributionRecovered.png "Distribution of Recovered")
 
 \
 `cumulativeDeaths(df)`\
@@ -195,18 +183,12 @@ Visualizes the global cumulative COVID-19 deaths over time.
 - Groups data by Date and sums up Deaths for each day globally.
 - Creates a line chart showing the growth of deaths over time.
 
-Global Deaths during the provided timeframe:
-![Global Deaths](images/globalDeaths.png "Global Deaths")
-
 \
 `topCountries(df)`\
 Identifies and visualizes the top 10 countries with the highest total COVID-19 deaths.
 - Groups data by Country/Region and sums up the Deaths for each country.
 - Sorts countries by total deaths in descending order.
 - Creates a horizontal bar chart for the top 10 countries
-
-Countries with the Top 10 highest Death Rates:
-![Top 10 Countries Deaths](images/topTenCountriesDeaths.png "Top 10 Countries Deaths")
 
 \
 `cumulativeByCountry(df, countries)`\
@@ -217,9 +199,6 @@ Visualizes cumulative deaths over time for specific countries (Not ideal but inc
 - Groups data by Date and Country/Region, summing up Deaths.
 - Creates a line plot for cumulative deaths, with separate lines for each selected country (Probably too many countries to visualize, hence it breaks after May 2021).
 
-Cumulative Deaths:
-![Cumulative Deaths](images/cumulativeDeaths.png "Cumulative Deaths")
-
 \
 `mortalityRateComparison(df)`
 - Compares the average mortality rates (deaths/confirmed cases) of the top 10 countries.
@@ -227,9 +206,6 @@ Cumulative Deaths:
 - Groups data by Country/Region and computes the average mortality rate for each country.
 - Sorts countries by their mortality rates in descending order.
 - Creates a horizontal bar chart to visualize the top 10 countries with the highest mortality rates.
-
-Countries with the Top 10 highest Mortality Rates:
-![Top 10 Countries Mortality Rates](images/mortalityRatesTopTen.png "Top 10 Countries Mortality Rates")
 
 
 ## Model building and evaluation
@@ -348,9 +324,6 @@ MAE: 0.008186468403731188, MSE: 0.0004403838171951204, R²: 0.6331801722529182
 **Model Visualization**
 - A scatter plot is generated to visualize the relationship between the actual mortality rates (y_test) and the predicted values (y_pred).
 - This visualization helps evaluate how well the model's predictions match the actual outcomes.
-
-Actual vs Predicted Mortality Rate:
-![Model evaluation](images/evaluationMortalityRatePrediction.png "Model evaluation")
 
 
 ## Main-Method
